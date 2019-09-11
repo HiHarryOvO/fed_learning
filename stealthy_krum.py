@@ -130,14 +130,16 @@ def transform(prediction, dataset):
 
 
 def krum(list_update):
+    global mal_chosen_times
     scores = []
     for update in list_update:
-        distances_from_other_updates = [(flat(update) - flat(other_update)) ** 2 for other_update in list_update if other_update != update]
+        distances_from_other_updates = [np.linalg.norm(flat(update - other_update), ord=2)
+                                        for other_update in list_update if other_update != update]
         sorted_distances = sorted(distances_from_other_updates, reverse=False) # 升序排列
         scores.append(sum(sorted_distances[:num_clients - 3]))
     if scores.index(min(scores)) == len(scores) - 1:
         mal_chosen_times += 1
-    return update[scores.index(min(scores))]
+    return list_update[scores.index(min(scores))]
 
 
 def custom_loss(m_update, mean_benign):
@@ -157,14 +159,15 @@ def custom_loss(m_update, mean_benign):
         # loss_2 = K.print_tensor(loss_2, message='loss_2 = ')
 
         # m_update = (np.array(mal_model.get_weights()) - w_server) / num_clients
-        if i == 1:
-            loss_3 = 0
-        else:
-            loss_3 = -1 * rho * cos_sim(flat(m_update), flat(mean_benign))
-        print("余弦相似度：", -1 * loss_3 / rho)
+        # if i == 1:
+        #     loss_3 = 0
+        # else:
+        #     loss_3 = -1 * rho * cos_sim(flat(m_update), flat(mean_benign))
+        # print("余弦相似度：", -1 * loss_3 / rho)
         # print("loss1:", loss_1)
         # print("loss2:", loss_2)
         # print("delta:", np.linalg.norm(flat(m_update), ord=2))
+        loss_3 = rho * np.linalg.norm(flat(m_update - mean_benign), ord=2)
 
         return loss_1 + loss_2 + loss_3
 
@@ -178,13 +181,13 @@ batch_size = 128
 num_classes = 10
 epochs = 2
 mal_epochs = 10
-rho = 1
+rho = 1e-2
 
 loss1_list = []
 loss2_list = []
 num_aux = 10
 # list_num_aux = [10, 50, 100]
-training_rounds = 50
+training_rounds = 100
 
 # input image dimensions
 img_rows, img_cols = 28, 28
@@ -276,7 +279,7 @@ for i in range(1, training_rounds + 1):
     print("辅助集 %d 条：第 %d 次联邦学习" % (num_aux, i))
     if i == 1:
         list_w = []
-        w_server = 0
+        w_benign = 0
         for key, client in dict_clients.items():
             if client.num != mal_num:
                 w_client = federated_learning(client, epoch=i)
@@ -322,7 +325,7 @@ for i in range(1, training_rounds + 1):
 
     else:
         list_delta_w = []
-        delta_w_server = 0
+        # delta_w_server = 0
         for key, client in dict_clients.items():
             if client.num != mal_num:
                 delta_w_client = federated_learning(client, epoch=i)
@@ -339,7 +342,7 @@ for i in range(1, training_rounds + 1):
 
         w_server = np.array(model_server.get_weights())
 
-        m_update = np.array(mal_model.get_weights()) - mean_benign * (num_clients - 1)
+        m_update = np.array(mal_model.get_weights()) - mean_benign
 
         mal_model.compile(loss=custom_loss(m_update, mean_benign), optimizer=mal_model.sgd_temp,
                           metrics=["accuracy"])
@@ -349,7 +352,7 @@ for i in range(1, training_rounds + 1):
                       epochs=mal_epochs,
                       verbose=0,
                       validation_data=(x_aux, y_aux_false))
-        mean_benign = delta_w_server / (num_clients - 1)
+        mean_benign = krum(list_delta_w)
         mal_model_delta_w = np.array(mal_model.get_weights()) - w_server
         list_delta_w.append(mal_model_delta_w) # 同理，不乘以权重
         model_server.set_weights(w_server + krum(list_delta_w)) # aggregate all updates

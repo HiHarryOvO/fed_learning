@@ -146,16 +146,17 @@ def custom_loss(m_update, mean_benign):
         # loss_2 = K.print_tensor(loss_2, message='loss_2 = ')
 
         # m_update = (np.array(mal_model.get_weights()) - w_server) / num_clients
-        if i == 1:
-            loss_3 = 0
-        else:
-            loss_3 = -1 * rho * cos_sim(flat(m_update), flat(mean_benign))
-        print("余弦相似度：", -1 * loss_3 / rho)
+
+        # if i == 1:
+        #     loss_3 = 0
+        # else:
+        #     loss_3 = -1 * rho * cos_sim(flat(m_update), flat(mean_benign))
+        # print("余弦相似度：", -1 * loss_3 / rho)
         # print("loss1:", loss_1)
         # print("loss2:", loss_2)
         # print("delta:", np.linalg.norm(flat(m_update), ord=2))
 
-        return loss_1 + loss_2 + loss_3
+        return loss_1 + loss_2  # + loss_3
 
     # Return a function
     return loss
@@ -167,7 +168,7 @@ batch_size = 128
 num_classes = 10
 epochs = 2
 mal_epochs = 10
-rho = 1
+rho = 1e-2
 
 loss1_list = []
 loss2_list = []
@@ -223,6 +224,7 @@ print("AUXILIARY DATASET SIZE:", num_aux)
 print("****************************")
 print("****************************")
 # create auxiliary data
+np.random.RandomState = 0
 aux_indices = np.random.choice(len(x_test), num_aux)
 x_aux = x_test[aux_indices]
 y_aux_true_uncat = y_test_uncat[aux_indices]
